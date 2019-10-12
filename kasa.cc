@@ -238,6 +238,18 @@ string querySetOfTickets(vector<pair<string, int> > query) {
 
     // allSetsOfTickets.lower_bound()
     // wyszukiwanie na secie dodać
+    auto ans = allSetsOfTickets.lower_bound({{lengthOfJourney, -1}, vector<int>()});
+    if(ans == allSetsOfTickets.end()) return ":-|";
+    string answer = "!";
+
+    for(auto x : (*ans).second) {
+        answer.push_back(' ');
+        // answer.push_back(schedule[x]);
+        answer.push_back(';');
+        answer = answer + schedule[x].first;
+    }
+    answer.pop_back();
+    return answer;
 }
 
 /*
