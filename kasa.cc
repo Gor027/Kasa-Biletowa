@@ -3,18 +3,22 @@
 
 using namespace std;
 
-// Nazwa biletu, cena, długość działania.
-using ticket = pair<string, pair<int, int>>;
+// Contains the name of the ficket; the price of the ticket;
+// time of validity.
+using ticket = pair<string, pair<long long, int> >;
 
-// Nazwa przystanku, czas zatrzymania.
+// Contains the name of the stop; time in which the bus will
+// be on this stop, in minuts from the 00:00
 using stop = pair<string, int>;
 
 // Route: Set of the stops ordered by their times (**Unique stops).
 // Each next one should have time bigger then previous.
 using route = set<stop>;
 
-// długość działania, cena, vector indeksów ze schedule
-using setOfTickets = pair<pair<int, int>, vector<int> >;
+// The first parameter is a pair <sum_of_times_of_tickets, price_of_tickets>.
+// The second parameter is a vector of size up to three, containing the positions
+// of chosen tickets is schedule.
+using setOfTickets = pair<pair<int, long long>, vector<int> >;
 
 /**
  * Schedule contains all possible tickets a customer can buy.
@@ -22,16 +26,16 @@ using setOfTickets = pair<pair<int, int>, vector<int> >;
 vector<ticket> schedule;
 
 // map of all added routs. the key is the ID of given route.
-map<int, route> allRouts;
+map<long long, route> allRouts;
 
 // Contains all possible sets of tickets up to three tickets that are relevant.
 // That is when we take all possible sets of tickets, some set of tickets is
 // relevant if there are no other set of tickets that is cheaper and lasts for
 // a longer period of time.
-// The first parameter is a pair <price_of_tickets, sum of times of tickets>.
-// The second parameter is a vector of size up to three, containing the positions
-// of chosen tickets is schedule.
 set<setOfTickets> allSetsOfTickets;
+
+// Contains the number of tickets that were print out during the program.
+unsigned long long countTickets;
 
 /***************TODO***************/
 /**
@@ -121,8 +125,8 @@ ALGORITHMIC PART
 */
 
 /*
-TODO
-swap first and second in setOfTickets (?)
+TODO:
+can query consist of only one stop?
 */
 
 /*
@@ -149,39 +153,45 @@ int deleteSetOfTickets(const setOfTickets &a, const setOfTickets &b) {
     }
 
     if (a.first.second >= b.first.second) {
-        allSetsOfTickets.erase(b);
-        return 2;
+        allSetsOfTickets.erase(a);
+        return 1;
     }
+
+    return 0;
 }
 
-setOfTickets addTicketToSet(setOfTickets sot, ticket &t, int idOfTicket) {
+// Creates a new setOfTickets, by adding a new ticket to the existing
+// setOfTickets
+setOfTickets addTicketToSet(setOfTickets sot, const ticket &t, int idOfTicket) {
     sot.second.push_back(idOfTicket);
-    sot.first.first += t.second.first;
-    sot.first.second += t.second.second;
+    sot.first.first += t.second.second;
+    sot.first.second += t.second.first;
     return sot;
 }
 
-void addSetOfTickets(setOfTickets t) {
+// Adds a setOfTickets to allSetsOfTickets, and maybe delets some sets of tickets
+// from it.
+void addSetOfTickets(const setOfTickets &t) {
     allSetsOfTickets.insert(t);
-    auto cur = allSetsOfTickets.find(t);
+    auto added = allSetsOfTickets.find(t);
 
-    if (cur != allSetsOfTickets.begin()) {
-        auto pr = prev(cur);
-
-        if (deleteSetOfTickets((*pr), (*cur)) == 2) return;
+    if (added != allSetsOfTickets.begin()) {
+        auto pr = prev(added);
+        if (deleteSetOfTickets((*pr), (*added)) == 2) return;
     }
 
     while (true) {
-        cur = allSetsOfTickets.find(t);
-        auto ne = next(cur);
+        added = allSetsOfTickets.find(t);
+        auto ne = next(added);
 
         if (ne == allSetsOfTickets.end()) break;
-
-        if (deleteSetOfTickets((*ne), (*cur)) != 1) return;
+        if (deleteSetOfTickets((*ne), (*added)) != 1) return;
     }
 }
 
-int getTime(int idOfRoute, const string &nameOfStop) {
+// Returns the time in which the bus with given id of route will
+// be on given stop. The time is given in minutes from the 00:00.
+int getTime(long long idOfRoute, const string &nameOfStop) {
     return (*allRouts[idOfRoute].lower_bound({nameOfStop, -1})).second;
 }
 
@@ -189,7 +199,7 @@ int getTime(int idOfRoute, const string &nameOfStop) {
 EXTERNAL FUNCTIONS
 */
 
-void addRoute(int idRoute, route &r) {
+void addRoute(long long idRoute, const route &r) {
     allRouts[idRoute] = r;
 }
 
@@ -210,43 +220,39 @@ void addTicket(ticket &t) {
     }
 }
 
-// zakładam że podane zapytanie jest poprawne, i jedyne co muszę sprawdzić
-// to czekanie na przystanku oraz czy da się tam dojechać przy pomocy maksymalnie
-// 3 biletów.
-// query jest vectorem par<string, int>, gdzie string to nazwa przystanku a int
-// to numer kursu. ostatnia para ma int = -1.
-// funkcja zwracajedno z trzech:
-// :-( nazwa_przystanku_gdzie_trzeba_czekać
+// Returns the answer for given query. The answer is given in one of three formats:
 // :-|
-// ! nazwa_biletu; nazwa_biletu_2; ...; nazwa_biletu_n
-string querySetOfTickets(vector<pair<string, int> > query) {
-    // siup
+// :-( name_of_the_stop_on_which_we_wait
+// ! name_of_ticket; name_of_ticket_2; ...; name_of_ticket_n
+// Function assumes that the given query is correct.
+// Query is a vector pair<string, long long> where string is the name of the stop
+// and long long is the number of route which we take to get to this stop. The value
+// of the last pair does not matter.
+string querySetOfTickets(vector<pair<string, long long> > &query) {
     int n = query.size();
 
     for (int i = 0; i < n - 1; i++) {
         int endOfDrive = getTime(query[i].second, query[i].first);
         int startOfDrive = getTime(query[i].second, query[i + 1].first);
+
         if (endOfDrive != startOfDrive) {
             return ":-( " + query[i].first;
         }
     }
 
-    // int start = (*allRouts[query[0].second].lower_bound({query[0].first, -1})).second;
     int start = getTime(query[0].second, query[0].first);
     int finish = getTime(query[n - 2].second, query[n - 1].first);
-    int lengthOfJourney = finish - start + 1;
+    int lengthOfTrip = finish - start + 1;
 
-    // allSetsOfTickets.lower_bound()
-    // wyszukiwanie na secie dodać
-    auto ans = allSetsOfTickets.lower_bound({{lengthOfJourney, -1}, vector<int>()});
+    auto ans = allSetsOfTickets.lower_bound({{lengthOfTrip, -1}, vector<int>()});
     if(ans == allSetsOfTickets.end()) return ":-|";
     string answer = "!";
 
     for(auto x : (*ans).second) {
+        countTickets ++;
         answer.push_back(' ');
-        // answer.push_back(schedule[x]);
-        answer.push_back(';');
         answer = answer + schedule[x].first;
+        answer.push_back(';');
     }
     answer.pop_back();
     return answer;
