@@ -52,19 +52,20 @@ const regex ticketRequestRegex("\\? [a-zA-Z_^]+( [0-9]+ [a-zA-Z_^]+)*");
 
 bool checkTicketRequest(const string &line) {
     if (regex_match(line, ticketRequestRegex)) {
-        // Request is valid do the required operation.
+        // Request is valid. You can do the required operation.
+        cout << "Valid Request" << endl;
     }
 }
 
 bool checkCostInInput(const string &costStr) {
-    return costStr == "0.00";
+    return costStr != "0.00";
 }
 
 /**
  * Regex checks when new ticket is to be added in schedule.
  * Does not check the case when cost is "0.00".
  */
-const regex scheduleRegex("[a-z A-Z]* [0-9]+.[0-9]{2} [1-9][0-9]*");
+const regex scheduleRegex("[a-z A-Z]+ ([0-9]+.[0-9]{2}) [1-9][0-9]*");
 
 /**
  * Checks the command and if it is valid adds ticket to the schedule.
@@ -76,7 +77,8 @@ bool checkTicketAddCommand(const string &line) {
     if (regex_match(line, match, scheduleRegex)) {
         if (checkCostInInput(match.str(1))) {
             // Function parses the line and adds the ticket in schedule.
-            addTicketToSchedule(line);
+            // addTicketToSchedule(line);
+            cout << "Add Ticket To Schedule" << endl;
             return true;
         }
     }
@@ -84,14 +86,29 @@ bool checkTicketAddCommand(const string &line) {
     return false;
 }
 
-bool checkTimeInInput(const string &hoursGroup, const string &minutesGroup) {
-    if (hoursGroup == "21")
-        if (minutesGroup > "21")
-            return false;
+/**
+ * Check in the line all time matches and check for time range.
+ * @param line - proper line. Needs to be checked for time range.
+ * @return true if time range is true for all tickets, otherwise false.
+ */
+bool checkTimeInInput(const string &line) {
+    smatch match;
+    const regex timeRegex("([5-9]|1[0-9]|2[0-1]):([0-5][0-9])");
 
-    if (hoursGroup == "5")
-        if (minutesGroup < "55")
-            return false;
+    string::const_iterator searchStart(line.cbegin());
+
+    while (regex_search(searchStart, line.cend(), match, timeRegex)) {
+
+        if (match[1] == "21")
+            if (stoi(match[2], nullptr, 10) > 21)
+                return false;
+
+        if (match[1] == "5")
+            if (stoi(match[2], nullptr, 10) < 55)
+                return false;
+
+        searchStart = match.suffix().first;
+    }
 
     return true;
 }
@@ -108,16 +125,18 @@ const regex routeRegex("[0-9]+( ([5-9]|1[0-9]|2[0-1]):([0-5][0-9]) [a-zA-Z^_]+)+
  * @return true if command is valid, otherwise false. The errors will be written in another function.
  */
 bool checkRouteAddCommand(const string &line) {
-    smatch match;
-
-    if (regex_match(line, match, routeRegex)) {
-        if (checkTimeInInput(match.str(2), match.str(3))) {
-            addRoute(line); // Parses the line and creates route with id and stops then adds in set.
-            return true;
+    if (regex_match(line, routeRegex)) {
+        if (!checkTimeInInput(line))
+            return false;
+        else {
+            cout << "Add new route!" << endl;
+            // addRoute(line); // Parses the line and creates route with id and stops, then adds in set.
         }
+    } else {
+        return false;
     }
 
-    return false;
+    return true;
 }
 
 /*
