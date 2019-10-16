@@ -66,7 +66,7 @@ void createQuery(const string &line) {
     vector<pair<string, long long>> query;
 
     // Do not iterate on the last string, which is the last stop in the query.
-    for (int i = 1; i < results.size() - 1; i += 2) {
+    for (int i = 1; i < (int)results.size() - 1; i += 2) {
         string stop = results[i];
         int stopNumber = stoi(results[i + 1], nullptr, 10);
         query.push_back(make_pair(stop, (long long) stopNumber));
@@ -173,7 +173,7 @@ bool createRoute(const string &line) {
 
     route newRoute;
     // resultSize is odd, but we start from 1, so cycling will be even times.
-    for (long long i = 1; i < results.size(); i += 2) {
+    for (long long i = 1; i < (int)results.size(); i += 2) {
         int minutes = convertToMinutes(results[i + 1]);
         stop stopTime = make_pair(results[i], minutes);
         newRoute.insert(stopTime);
@@ -284,14 +284,17 @@ INNER FUNCTIONS
 
 // returns 0 if nothing erased, 1 if a erased and 2 if b erased
 int deleteSetOfTickets(const setOfTickets &a, const setOfTickets &b) {
-    if (a.first.first > b.first.first) {
-        int ret = deleteSetOfTickets(b, a);
-        if (ret == 2) return 1;
-        if (ret == 1) return 2;
+    if (a.first.first != b.first.first) {
         return 0;
     }
 
-    if (a.first == b.first) {
+    if(a.first.second < b.first.second) {
+        allSetsOfTickets.erase(b);
+        return 2;
+    } else if (a.first.second > b.first.second) {
+        allSetsOfTickets.erase(a);
+        return 1;
+    } else {
         if (a.second.size() < b.second.size()) {
             allSetsOfTickets.erase(b);
             return 2;
@@ -300,13 +303,6 @@ int deleteSetOfTickets(const setOfTickets &a, const setOfTickets &b) {
             return 1;
         }
     }
-
-    if (a.first.second >= b.first.second) {
-        allSetsOfTickets.erase(a);
-        return 1;
-    }
-
-    return 0;
 }
 
 // Creates a new setOfTickets, by adding a new ticket to the existing
@@ -321,12 +317,18 @@ setOfTickets addTicketToSet(setOfTickets sot, const ticket &t, int idOfTicket) {
 // Adds a setOfTickets to allSetsOfTickets, and maybe delets some sets of tickets
 // from it.
 void addSetOfTickets(const setOfTickets &t) {
+    if(t.second.size() > 3) return;
+
+    // cout << "dodawany " << t.first.first << " " << t.first.second << endl;
     allSetsOfTickets.insert(t);
     auto added = allSetsOfTickets.find(t);
 
-    if (added != allSetsOfTickets.begin()) {
+    while (added != allSetsOfTickets.begin()) {
         auto pr = prev(added);
-        if (deleteSetOfTickets((*pr), (*added)) == 2) return;
+        int ret = deleteSetOfTickets((*pr), (*added));
+        if (ret == 2) return;
+        if (ret == 0) break;
+        added = allSetsOfTickets.find(t);
     }
 
     while (true) {
@@ -341,6 +343,8 @@ void addSetOfTickets(const setOfTickets &t) {
 // Returns the time in which the bus with given id of route will
 // be on given stop. The time is given in minutes from the 00:00.
 int getTime(long long idOfRoute, const string &nameOfStop) {
+    // debug(idOfRoute);
+    // debug(nameOfStop);
     return (*allRouts[idOfRoute].lower_bound({nameOfStop, -1})).second;
 }
 
@@ -353,20 +357,35 @@ void addRoute(long long idRoute, const route &r) {
 }
 
 void addTicket(ticket &t) {
+    allSetsOfTickets.insert({{0, 0}, std::vector<int>()});
+
+    // for(auto x : allSetsOfTickets) {
+    //     cout << x.first.first << " " << x.first.second << endl;
+    // }
+    // cout << "koniec1\n";
+
     schedule.push_back(t);
     int idOfTicket = schedule.size() - 1;
     vector<setOfTickets> tmpSetsOfTickets;
-    tmpSetsOfTickets.push_back({{0, 0}, vector<int>()});
 
     for (auto tickets : allSetsOfTickets) {
-        if (tickets.second.size() < 3) {
-            tmpSetsOfTickets.push_back(addTicketToSet(tickets, t, idOfTicket));
-        }
+        tickets = addTicketToSet(tickets, t, idOfTicket);
+        tmpSetsOfTickets.push_back(tickets);
+        tickets = addTicketToSet(tickets, t, idOfTicket);
+        tmpSetsOfTickets.push_back(tickets);
+        tickets = addTicketToSet(tickets, t, idOfTicket);
+        tmpSetsOfTickets.push_back(tickets);
     }
 
     for (auto tickets : tmpSetsOfTickets) {
         addSetOfTickets(tickets);
     }
+
+
+    // for(auto x : allSetsOfTickets) {
+    //     cout << x.first.first << " " << x.first.second << endl;
+    // }
+    // cout << "koniec2\n";
 }
 
 // Returns the answer for given query. The answer is given in one of three formats:
@@ -380,9 +399,11 @@ void addTicket(ticket &t) {
 string querySetOfTickets(vector<pair<string, long long>> &query) {
     int n = query.size();
 
-    for (int i = 0; i < n - 1; i++) {
-        int endOfDrive = getTime(query[i].second, query[i].first);
-        int startOfDrive = getTime(query[i].second, query[i + 1].first);
+    for (int i = 0; i < n - 2; i++) {
+        int endOfDrive = getTime(query[i].second, query[i + 1].first);
+        int startOfDrive = getTime(query[i + 1].second, query[i + 1].first);
+        // debug(endOfDrive);
+        // debug(startOfDrive);
 
         if (endOfDrive != startOfDrive) {
             return ":-( " + query[i].first;
@@ -393,11 +414,21 @@ string querySetOfTickets(vector<pair<string, long long>> &query) {
     int finish = getTime(query[n - 2].second, query[n - 1].first);
     int lengthOfTrip = finish - start + 1;
 
-    auto ans = allSetsOfTickets.lower_bound({{lengthOfTrip, -1}, vector<int>()});
-    if (ans == allSetsOfTickets.end()) return ":-|";
+    // // debug(lengthOfTrip);
+
+    auto cur = allSetsOfTickets.lower_bound({{lengthOfTrip, -1}, vector<int>()});
+    setOfTickets ans = {{-1, LLONG_MAX}, vector<int>()};
+
+    for(; cur != allSetsOfTickets.end(); cur++) {
+        // // debug((*cur).first.first);
+        // // debug((*cur).first.second);
+        if((*cur).first.second <= ans.first.second) ans = (*cur);
+    }
+
+    if (ans.second.empty()) return ":-|";
     string answer = "!";
 
-    for (auto x : (*ans).second) {
+    for (auto x : ans.second) {
         countTickets++;
         answer.push_back(' ');
         answer = answer + schedule[x].first;
