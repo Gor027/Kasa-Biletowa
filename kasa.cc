@@ -3,12 +3,12 @@
 
 using namespace std;
 
-// Contains the name of the ficket; the price of the ticket;
+// Contains the name of the ticket; the price of the ticket;
 // time of validity.
-using ticket = pair<string, pair<long long, int> >;
+using ticket = pair<string, pair<long long, int>>;
 
 // Contains the name of the stop; time in which the bus will
-// be on this stop, in minuts from the 00:00
+// be on this stop, in minutes from the 00:00
 using stop = pair<string, int>;
 
 // Route: Set of the stops ordered by their times (**Unique stops).
@@ -37,13 +37,46 @@ set<setOfTickets> allSetsOfTickets;
 // Contains the number of tickets that were print out during the program.
 unsigned long long countTickets;
 
+/******************Function Headers*******************/
+void addRoute(long long idRoute, const route &r);
+
+void addTicket(ticket &t);
+
+string querySetOfTickets(vector<pair<string, long long>> &query);
+
+/*****************************************************/
+
 /***************TODO***************/
 /**
  * Regex for the third command - (DONE)
  * Check functions             - (DONE)
- * Add functions               - (?)
+ * Add functions               - (DONE)
  */
-/***********ALMOST COMPLETE************/
+/***********COMPLETED************/
+
+
+void createQuery(const string &line) {
+    vector<string> results;
+    istringstream iss(line);
+
+    for (string s; iss >> s;)
+        results.push_back(s);
+
+    // results[0] is ?, so we omit that.
+    vector<pair<string, long long>> query;
+
+    // Do not iterate on the last string, which is the last stop in the query.
+    for (int i = 1; i < results.size() - 1; i += 2) {
+        string stop = results[i];
+        int stopNumber = stoi(results[i + 1], nullptr, 10);
+        query.push_back(make_pair(stop, (long long) stopNumber));
+    }
+
+    // Add also the last stop with some value for route number which is unnecessary.
+    query.push_back(make_pair(results[results.size() - 1], -27));
+
+    querySetOfTickets(query);
+}
 
 /**
  * Regex checks whether the request for a ticket is valid or no.
@@ -52,9 +85,40 @@ const regex ticketRequestRegex("\\? [a-zA-Z_^]+( [0-9]+ [a-zA-Z_^]+)*");
 
 bool checkTicketRequest(const string &line) {
     if (regex_match(line, ticketRequestRegex)) {
-        // Request is valid. You can do the required operation.
-        cout << "Valid Request" << endl;
+        createQuery(line);
     }
+}
+
+bool is_number(const string &s) {
+    string::const_iterator it = s.begin();
+    while (it != s.end() && (isdigit(*it) || *it == '.')) ++it;
+
+    return !s.empty() && it == s.end();
+}
+
+void createTicket(const string &line) {
+    vector<string> results;
+    istringstream iss(line);
+
+    for (string s; iss >> s;)
+        results.push_back(s);
+
+    string name = results[0];
+    int i = 1;
+    while (!is_number(results[i])) {
+        name.append(" ");
+        name.append(results[i]);
+        i++;
+    }
+
+    double cost = stod(results[i], nullptr);
+    int validity = stoi(results[i + 1], nullptr, 10);
+
+    // Creates the ticket.
+    ticket newTicket = make_pair(name, make_pair((long long) cost, validity));
+
+    // Add the ticket.
+    addTicket(newTicket);
 }
 
 bool checkCostInInput(const string &costStr) {
@@ -77,13 +141,70 @@ bool checkTicketAddCommand(const string &line) {
     if (regex_match(line, match, scheduleRegex)) {
         if (checkCostInInput(match.str(1))) {
             // Function parses the line and adds the ticket in schedule.
-            // addTicketToSchedule(line);
-            cout << "Add Ticket To Schedule" << endl;
+            createTicket(line);
             return true;
         }
     }
 
     return false;
+}
+
+int convertToMinutes(const string &time) {
+    string delim = ":";
+    string hour = time.substr(0, time.find(delim));
+    string minutes = time.substr(time.find(delim) + 1);
+
+    // Returns time in minutes from 0:00.
+    return stoi(hour, nullptr, 10) * 60 + stoi(minutes, nullptr, 10);
+}
+
+bool createRoute(const string &line) {
+    vector<string> results;
+    istringstream iss(line);
+
+    for (string s; iss >> s;)
+        results.push_back(s);
+
+    // Check if given id is free.
+    long long id = stoi(results[0], nullptr, 10);
+    // If map has route with id 'id' return false.
+    if (allRouts.find(id) == allRouts.end())
+        return false;
+
+    route newRoute;
+    // resultSize is odd, but we start from 1, so cycling will be even times.
+    for (long long i = 1; i < results.size(); i += 2) {
+        int minutes = convertToMinutes(results[i + 1]);
+        stop stopTime = make_pair(results[i], minutes);
+        newRoute.insert(stopTime);
+    }
+
+    // Everything is fine add the route with given id in map.
+    addRoute(id, newRoute);
+    return true;
+}
+
+bool checkUniqueStops(const string &line) {
+    // Check if route stops are unique.
+    smatch match;
+    const regex stopRegex("([a-zA-Z^_]+)");
+
+    string::const_iterator searchStart(line.cbegin());
+    vector<string> stopNames;
+
+    while (regex_search(searchStart, line.cend(), match, stopRegex)) {
+        if (find(stopNames.begin(), stopNames.end(), match[1]) != stopNames.end()) {
+            // Stop can be reached maximum once in the route.
+            return false;
+        } else {
+            // Add to vector to be checked later.
+            stopNames.push_back(match[1]);
+        }
+
+        searchStart = match.suffix().first;
+    }
+
+    return true;
 }
 
 /**
@@ -96,16 +217,27 @@ bool checkTimeInInput(const string &line) {
     const regex timeRegex("([5-9]|1[0-9]|2[0-1]):([0-5][0-9])");
 
     string::const_iterator searchStart(line.cbegin());
+    int prevHours = 0;
+    int prevMinutes = 0;
 
     while (regex_search(searchStart, line.cend(), match, timeRegex)) {
+        int hours = stoi(match[1], nullptr, 10);
+        int minutes = stoi(match[2], nullptr, 10);
+
+        if ((hours < prevHours) || (hours == prevHours && minutes <= prevMinutes))
+            return false;
 
         if (match[1] == "21")
-            if (stoi(match[2], nullptr, 10) > 21)
+            if (minutes > 21)
                 return false;
 
         if (match[1] == "5")
-            if (stoi(match[2], nullptr, 10) < 55)
+            if (minutes < 55)
                 return false;
+
+        // To compare with the next time.
+        prevHours = hours;
+        prevMinutes = minutes;
 
         searchStart = match.suffix().first;
     }
@@ -117,7 +249,7 @@ bool checkTimeInInput(const string &line) {
  * Regex checks everything besides the minute range for 5:55 and 21:21.
  * Checks existence of leading 0 in first part(Hours) of the time.
  */
-const regex routeRegex("[0-9]+( ([5-9]|1[0-9]|2[0-1]):([0-5][0-9]) [a-zA-Z^_]+)+");
+const regex routeRegex("[0-9]+( ([5-9]|1[0-9]|2[0-1]):([0-5][0-9]) ([a-zA-Z^_]+))+");
 
 /**
  * Reads the line and parses the command to be executed,
@@ -125,18 +257,16 @@ const regex routeRegex("[0-9]+( ([5-9]|1[0-9]|2[0-1]):([0-5][0-9]) [a-zA-Z^_]+)+
  * @return true if command is valid, otherwise false. The errors will be written in another function.
  */
 bool checkRouteAddCommand(const string &line) {
-    if (regex_match(line, routeRegex)) {
-        if (!checkTimeInInput(line))
-            return false;
-        else {
-            cout << "Add new route!" << endl;
-            // addRoute(line); // Parses the line and creates route with id and stops, then adds in set.
-        }
-    } else {
+    if (!regex_match(line, routeRegex))
         return false;
-    }
 
-    return true;
+    // Check time range and unique stop criteria are satisfied.
+    if (!checkTimeInInput(line) || !checkUniqueStops(line))
+        return false;
+
+    // If gets here, means input is correct.
+    // Parses the line and creates route with id and stops, then adds in set.
+    return !createRoute(line);
 }
 
 /*
@@ -247,7 +377,7 @@ void addTicket(ticket &t) {
 // Query is a vector pair<string, long long> where string is the name of the stop
 // and long long is the number of route which we take to get to this stop. The value
 // of the last pair does not matter.
-string querySetOfTickets(vector<pair<string, long long> > &query) {
+string querySetOfTickets(vector<pair<string, long long>> &query) {
     int n = query.size();
 
     for (int i = 0; i < n - 1; i++) {
@@ -264,11 +394,11 @@ string querySetOfTickets(vector<pair<string, long long> > &query) {
     int lengthOfTrip = finish - start + 1;
 
     auto ans = allSetsOfTickets.lower_bound({{lengthOfTrip, -1}, vector<int>()});
-    if(ans == allSetsOfTickets.end()) return ":-|";
+    if (ans == allSetsOfTickets.end()) return ":-|";
     string answer = "!";
 
-    for(auto x : (*ans).second) {
-        countTickets ++;
+    for (auto x : (*ans).second) {
+        countTickets++;
         answer.push_back(' ');
         answer = answer + schedule[x].first;
         answer.push_back(';');
@@ -283,23 +413,26 @@ END OF ALGORITHMIC PART
 
 int main() {
     string line;
-    int lineNumber = 1;
+    int lineNumber = 0;
     while (getline(cin, line)) {
         // Ignore empty lines
-        if (line.length() != 0) {
+        if (!line.empty()) {
             // Do checking staff...if wrong print on the stderr.
+            if (!checkRouteAddCommand(line) && !checkTicketAddCommand(line) && !checkTicketRequest(line)) {
+                cerr << "Error in line " << ++lineNumber << ": " << line << endl;
+            }
+        } else {
+            lineNumber++;
         }
     }
 
-    // Checking the input reading status.
-    if (cin.bad()) {
-        // IO error
-    } else if (!cin.eof()) {
-        // format error (not possible with getline)
-    } else {
-        // format error (not possible with getline)
-        // or end of file
-    }
+    /****** Assumption that below code will not be reached because of input. ******/
+//    // Checking the input reading status.
+//    if (cin.bad()) {
+//        // IO error
+//    } else if (!cin.eof()) {
+//        // format error (not possible with getline)
+//    }
 
     return 0;
 }
