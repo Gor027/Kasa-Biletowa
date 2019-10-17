@@ -94,10 +94,7 @@ void createTicket(const string &line) {
             break;
         }
     }
-
-    cout << name << endl;
-    cout << helperLine << endl;
-
+    
     vector<string> results;
     istringstream iss(helperLine);
 
