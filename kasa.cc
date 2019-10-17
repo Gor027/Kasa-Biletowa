@@ -1,5 +1,6 @@
 #include <iostream>
 #include <bits/stdc++.h>
+#include <string>
 
 using namespace std;
 
@@ -31,7 +32,7 @@ map<long long, route> allRouts;
 setOfTickets allSetsOfTickets[2000][4];
 
 // Contains the number of tickets that were print out during the program.
-unsigned long long countTickets;
+unsigned long long countTickets = 0;
 
 const int max_time = 1500;
 
@@ -81,30 +82,30 @@ string checkTicketRequest(const string &line) {
     return "";
 }
 
-bool is_number(const string &s) {
-    string::const_iterator it = s.begin();
-    while (it != s.end() && (isdigit(*it) || *it == '.')) ++it;
-
-    return !s.empty() && it == s.end();
-}
-
 void createTicket(const string &line) {
+    // Get the name until first digit.
+
+    string helperLine = line;
+    string name;
+    for (unsigned i = 0; i < line.length(); i++) {
+        if (line[i] >= '0' && line[i] <= '9') {
+            name = helperLine.substr(0, i - 1);
+            helperLine.erase(0, i);
+            break;
+        }
+    }
+
+    cout << name << endl;
+    cout << helperLine << endl;
+
     vector<string> results;
-    istringstream iss(line);
+    istringstream iss(helperLine);
 
     for (string s; iss >> s;)
         results.push_back(s);
 
-    string name = results[0];
-    int i = 1;
-    while (!is_number(results[i])) {
-        name.append(" ");
-        name.append(results[i]);
-        i++;
-    }
-
-    double cost = stod(results[i], nullptr);
-    int validity = stoi(results[i + 1], nullptr, 10);
+    double cost = stod(results[0], nullptr);
+    int validity = stoi(results[1], nullptr, 10);
 
     // Creates the ticket.
     ticket newTicket = make_pair(name, make_pair((long long) cost, validity));
@@ -426,6 +427,7 @@ int main() {
         }
     }
 
+    cout << countTickets << endl;
     /****** Assumption that below code will not be reached because of input. ******/
 //    // Checking the input reading status.
 //    if (cin.bad()) {
