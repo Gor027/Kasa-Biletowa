@@ -94,7 +94,7 @@ void createTicket(const string &line) {
             break;
         }
     }
-    
+
     vector<string> results;
     istringstream iss(helperLine);
 
