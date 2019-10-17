@@ -34,3 +34,8 @@
 # CLion
 .idea/
 cmake-build-debug/
+*.err
+*.in
+kasa
+temperr
+tempout

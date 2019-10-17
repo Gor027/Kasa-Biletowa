@@ -44,16 +44,8 @@ string querySetOfTickets(vector<pair<string, long long>> &query);
 
 /*****************************************************/
 
-/***************TODO***************/
-/**
- * Regex for the third command - (DONE)
- * Check functions             - (DONE)
- * Add functions               - (DONE)
- */
-/***********COMPLETED************/
 
-
-void createQuery(const string &line) {
+string createQuery(const string &line) {
     vector<string> results;
     istringstream iss(line);
 
@@ -73,7 +65,7 @@ void createQuery(const string &line) {
     // Add also the last stop with some value for route number which is unnecessary.
     query.push_back(make_pair(results[results.size() - 1], -27));
 
-    querySetOfTickets(query);
+    return querySetOfTickets(query);
 }
 
 /**
@@ -81,13 +73,12 @@ void createQuery(const string &line) {
  */
 const regex ticketRequestRegex("\\? [a-zA-Z_^]+( [0-9]+ [a-zA-Z_^]+)*");
 
-bool checkTicketRequest(const string &line) {
+string checkTicketRequest(const string &line) {
     if (regex_match(line, ticketRequestRegex)) {
-        createQuery(line);
-        return true;
+        return createQuery(line);
     }
 
-    return false;
+    return "";
 }
 
 bool is_number(const string &s) {
@@ -169,14 +160,14 @@ bool createRoute(const string &line) {
     // Check if given id is free.
     long long id = stoi(results[0], nullptr, 10);
     // If map has route with id 'id' return false.
-    if (allRouts.find(id) == allRouts.end())
+    if (allRouts.find(id) != allRouts.end())
         return false;
 
     route newRoute;
     // resultSize is odd, but we start from 1, so cycling will be even times.
     for (long long i = 1; i < (int) results.size(); i += 2) {
-        int minutes = convertToMinutes(results[i + 1]);
-        stop stopTime = make_pair(results[i], minutes);
+        int minutes = convertToMinutes(results[i]);
+        stop stopTime = make_pair(results[i + 1], minutes);
         newRoute.insert(stopTime);
     }
 
@@ -267,7 +258,7 @@ bool checkRouteAddCommand(const string &line) {
 
     // If gets here, means input is correct.
     // Parses the line and creates route with id and stops, then adds in set.
-    return !createRoute(line);
+    return createRoute(line);
 }
 
 /*
@@ -392,6 +383,7 @@ string querySetOfTickets(vector<pair<string, long long>> &query) {
         answer = answer + schedule[x].first;
         answer.push_back(';');
     }
+
     answer.pop_back();
     return answer;
 }
@@ -411,14 +403,23 @@ END OF ALGORITHMIC PART
 */
 
 int main() {
+    preprocAllSetsOfTickets();
     string line;
     int lineNumber = 0;
     while (getline(cin, line)) {
         // Ignore empty lines
         if (!line.empty()) {
             // Do checking staff...if wrong print on the stderr.
-            if (!checkRouteAddCommand(line) && !checkTicketAddCommand(line) && !checkTicketRequest(line)) {
-                cerr << "Error in line " << ++lineNumber << ": " << line << endl;
+            string query;
+            if (!checkRouteAddCommand(line) && !checkTicketAddCommand(line)) {
+                if (!(query = checkTicketRequest(line)).empty()) {
+                    cout << query << endl;
+                    lineNumber++;
+                } else {
+                    cerr << "Error in line " << ++lineNumber << ": " << line << endl;
+                }
+            } else {
+                lineNumber++;
             }
         } else {
             lineNumber++;
