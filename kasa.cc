@@ -66,7 +66,7 @@ void createQuery(const string &line) {
     vector<pair<string, long long>> query;
 
     // Do not iterate on the last string, which is the last stop in the query.
-    for (int i = 1; i < results.size() - 1; i += 2) {
+    for (unsigned long i = 1; i < results.size() - 1; i += 2) {
         string stop = results[i];
         int stopNumber = stoi(results[i + 1], nullptr, 10);
         query.push_back(make_pair(stop, (long long) stopNumber));
@@ -86,7 +86,10 @@ const regex ticketRequestRegex("\\? [a-zA-Z_^]+( [0-9]+ [a-zA-Z_^]+)*");
 bool checkTicketRequest(const string &line) {
     if (regex_match(line, ticketRequestRegex)) {
         createQuery(line);
+        return true;
     }
+
+    return false;
 }
 
 bool is_number(const string &s) {
@@ -173,7 +176,7 @@ bool createRoute(const string &line) {
 
     route newRoute;
     // resultSize is odd, but we start from 1, so cycling will be even times.
-    for (long long i = 1; i < results.size(); i += 2) {
+    for (unsigned long i = 1; i < results.size(); i += 2) {
         int minutes = convertToMinutes(results[i + 1]);
         stop stopTime = make_pair(results[i], minutes);
         newRoute.insert(stopTime);
