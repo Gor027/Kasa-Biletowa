@@ -28,14 +28,12 @@ vector<ticket> schedule;
 // map of all added routs. the key is the ID of given route.
 map<long long, route> allRouts;
 
-// Contains all possible sets of tickets up to three tickets that are relevant.
-// That is when we take all possible sets of tickets, some set of tickets is
-// relevant if there are no other set of tickets that is cheaper and lasts for
-// a longer period of time.
-set<setOfTickets> allSetsOfTickets;
+setOfTickets allSetsOfTickets[2000][4];
 
 // Contains the number of tickets that were print out during the program.
 unsigned long long countTickets;
+
+const int max_time = 1500;
 
 /******************Function Headers*******************/
 void addRoute(long long idRoute, const route &r);
@@ -66,7 +64,7 @@ void createQuery(const string &line) {
     vector<pair<string, long long>> query;
 
     // Do not iterate on the last string, which is the last stop in the query.
-    for (unsigned long i = 1; i < results.size() - 1; i += 2) {
+    for (int i = 1; i < (int) results.size() - 1; i += 2) {
         string stop = results[i];
         int stopNumber = stoi(results[i + 1], nullptr, 10);
         query.push_back(make_pair(stop, (long long) stopNumber));
@@ -176,7 +174,7 @@ bool createRoute(const string &line) {
 
     route newRoute;
     // resultSize is odd, but we start from 1, so cycling will be even times.
-    for (unsigned long i = 1; i < results.size(); i += 2) {
+    for (long long i = 1; i < (int) results.size(); i += 2) {
         int minutes = convertToMinutes(results[i + 1]);
         stop stopTime = make_pair(results[i], minutes);
         newRoute.insert(stopTime);
@@ -285,59 +283,29 @@ can query consist of only one stop?
 INNER FUNCTIONS
 */
 
-// returns 0 if nothing erased, 1 if a erased and 2 if b erased
-int deleteSetOfTickets(const setOfTickets &a, const setOfTickets &b) {
-    if (a.first.first > b.first.first) {
-        int ret = deleteSetOfTickets(b, a);
-        if (ret == 2) return 1;
-        if (ret == 1) return 2;
-        return 0;
-    }
-
-    if (a.first == b.first) {
-        if (a.second.size() < b.second.size()) {
-            allSetsOfTickets.erase(b);
-            return 2;
-        } else {
-            allSetsOfTickets.erase(a);
-            return 1;
-        }
-    }
-
-    if (a.first.second >= b.first.second) {
-        allSetsOfTickets.erase(a);
-        return 1;
-    }
-
-    return 0;
-}
-
 // Creates a new setOfTickets, by adding a new ticket to the existing
 // setOfTickets
 setOfTickets addTicketToSet(setOfTickets sot, const ticket &t, int idOfTicket) {
     sot.second.push_back(idOfTicket);
     sot.first.first += t.second.second;
     sot.first.second += t.second.first;
+    sot.first.first = min(sot.first.first, max_time);
     return sot;
 }
 
-// Adds a setOfTickets to allSetsOfTickets, and maybe delets some sets of tickets
-// from it.
+// Adds a setOfTickets to allSetsOfTickets, if it is better. setOfTickets A is better
+// than setOfTickets of B if they have the same sum of times and number of tickets,
+// and the cost of A is smaller then cost of B.
 void addSetOfTickets(const setOfTickets &t) {
-    allSetsOfTickets.insert(t);
-    auto added = allSetsOfTickets.find(t);
+    if (t.second.size() > 3) return;
 
-    if (added != allSetsOfTickets.begin()) {
-        auto pr = prev(added);
-        if (deleteSetOfTickets((*pr), (*added)) == 2) return;
-    }
+    int id_time = t.first.first;
+    int id_ticket = t.second.size();
 
-    while (true) {
-        added = allSetsOfTickets.find(t);
-        auto ne = next(added);
-
-        if (ne == allSetsOfTickets.end()) break;
-        if (deleteSetOfTickets((*ne), (*added)) != 1) return;
+    if (allSetsOfTickets[id_time][id_ticket].first.first == -1) {
+        allSetsOfTickets[id_time][id_ticket] = t;
+    } else if (allSetsOfTickets[id_time][id_ticket].first.second > t.first.second) {
+        allSetsOfTickets[id_time][id_ticket] = t;
     }
 }
 
@@ -355,20 +323,20 @@ void addRoute(long long idRoute, const route &r) {
     allRouts[idRoute] = r;
 }
 
+// Adds to the allSetsOfTickets all possible sets of tickets with given ticket
+// that are better than previous. setOfTickets A is better than setOfTickets of B
+// if they have the same sum of times and number of tickets, and the cost of A is
+// smaller then cost of B.
 void addTicket(ticket &t) {
     schedule.push_back(t);
     int idOfTicket = schedule.size() - 1;
-    vector<setOfTickets> tmpSetsOfTickets;
-    tmpSetsOfTickets.push_back({{0, 0}, vector<int>()});
 
-    for (auto tickets : allSetsOfTickets) {
-        if (tickets.second.size() < 3) {
-            tmpSetsOfTickets.push_back(addTicketToSet(tickets, t, idOfTicket));
+    for (int i = 0; i <= max_time; i++) {
+        for (int j = 0; j < 3; j++) {
+            if (allSetsOfTickets[i][j].first.first == -1) continue;
+            setOfTickets sot = addTicketToSet(allSetsOfTickets[i][j], t, idOfTicket);
+            addSetOfTickets(sot);
         }
-    }
-
-    for (auto tickets : tmpSetsOfTickets) {
-        addSetOfTickets(tickets);
     }
 }
 
@@ -382,13 +350,14 @@ void addTicket(ticket &t) {
 // of the last pair does not matter.
 string querySetOfTickets(vector<pair<string, long long>> &query) {
     int n = query.size();
+    assert(n > 1);
 
-    for (int i = 0; i < n - 1; i++) {
-        int endOfDrive = getTime(query[i].second, query[i].first);
-        int startOfDrive = getTime(query[i].second, query[i + 1].first);
+    for (int i = 0; i < n - 2; i++) {
+        int endOfDrive = getTime(query[i].second, query[i + 1].first);
+        int startOfDrive = getTime(query[i + 1].second, query[i + 1].first);
 
         if (endOfDrive != startOfDrive) {
-            return ":-( " + query[i].first;
+            return ":-( " + query[i + 1].first;
         }
     }
 
@@ -396,11 +365,28 @@ string querySetOfTickets(vector<pair<string, long long>> &query) {
     int finish = getTime(query[n - 2].second, query[n - 1].first);
     int lengthOfTrip = finish - start + 1;
 
-    auto ans = allSetsOfTickets.lower_bound({{lengthOfTrip, -1}, vector<int>()});
-    if (ans == allSetsOfTickets.end()) return ":-|";
+    int id_time = -1;
+    int id_ticket = -1;
+
+    for (int i = lengthOfTrip; i <= max_time; i++) {
+        for (int j = 1; j <= 3; j++) {
+            if (allSetsOfTickets[i][j].first.first == -1) continue;
+
+            if (id_time == -1) {
+                id_time = i;
+                id_ticket = j;
+            }
+            if (allSetsOfTickets[i][j].first.second < allSetsOfTickets[id_time][id_ticket].first.second) {
+                id_time = i;
+                id_ticket = j;
+            }
+        }
+    }
+
+    if (id_time == -1) return ":-|";
     string answer = "!";
 
-    for (auto x : (*ans).second) {
+    for (auto x : allSetsOfTickets[id_time][id_ticket].second) {
         countTickets++;
         answer.push_back(' ');
         answer = answer + schedule[x].first;
@@ -408,6 +394,16 @@ string querySetOfTickets(vector<pair<string, long long>> &query) {
     }
     answer.pop_back();
     return answer;
+}
+
+void preprocAllSetsOfTickets() {
+    for (int i = 0; i <= max_time; i++) {
+        for (int j = 0; j <= 3; j++) {
+            allSetsOfTickets[i][j] = {{-1, -1}, vector<int>()};
+        }
+    }
+
+    allSetsOfTickets[0][0] = {{0, 0}, vector<int>()};
 }
 
 /*
